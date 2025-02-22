@@ -1,0 +1,106 @@
+#include <WiFi.h>
+#include <WebServer.h>
+
+// Replace with your network credentials
+const char* ssid = "OPPO A9 2020";
+const char* password = "123456789";
+
+// LED pins
+const int lightOrder1[] = {2, 17, 21, 4, 18};
+const int lightOrder2[] = {2, 4, 17, 18, 21};
+const int numOfBulbs = sizeof(lightOrder1) / sizeof(lightOrder1[0]);
+const int numOfBulbs2 = sizeof(lightOrder2) / sizeof(lightOrder2[0]);
+
+WebServer server(80);  // Create a web server on port 80
+
+// HTML page for LED control
+void handleRoot() {
+    String html = "<!DOCTYPE html><html><head><title>ESP32 LED Control</title></head><body>";
+    html += "<h1>ESP32 LED Control</h1>";
+    html += "<button onclick=\"fetch('/allon').then(response => alert('All LEDs ON!'))\">FN1: All LEDs ON</button>";
+    html += "<button onclick=\"fetch('/sequence').then(response => alert('LED Sequence Started!'))\">FN2: LED Sequence</button>";
+    html += "<button onclick=\"fetch('/middleout').then(response => alert('Middle-Out Sequence Started!'))\">FN3: Middle to Out Sequence</button>";
+    html += "<button onclick=\"fetch('/off').then(response => alert('All LEDs OFF!'))\">Turn All LEDs OFF</button>";
+    html += "</body></html>";
+
+    server.send(200, "text/html", html);
+}
+
+// Initialize all bulbs as OUTPUT and turn them off
+void initializeBulbs() {
+    for (int i = 0; i < numOfBulbs; i++) {
+        pinMode(lightOrder1[i], OUTPUT);
+        digitalWrite(lightOrder1[i], LOW);
+        pinMode(lightOrder2[i], OUTPUT);
+        digitalWrite(lightOrder2[i], LOW);
+    }
+}
+
+void Fn1() {
+    for (int i = 0; i < numOfBulbs; i++) {
+        digitalWrite(lightOrder1[i], HIGH);
+    }
+    server.send(200, "text/html", "All LEDs are ON!");
+}
+
+void Fn2() {
+    for (int i = 0; i < numOfBulbs; i++) {
+        digitalWrite(lightOrder1[i], HIGH);
+        delay(500);
+        
+    }
+    server.send(200, "text/html", "LED sequence completed!");
+}
+
+void Fn3() {
+    int mid = numOfBulbs2 / 2;
+
+    digitalWrite(lightOrder2[mid], HIGH);
+    delay(500);
+
+    for (int offset = 1; offset <= mid; offset++) {
+        if (mid - offset >= 0) {
+            digitalWrite(lightOrder2[mid - offset], HIGH);
+        }
+        if (mid + offset < numOfBulbs) {
+            digitalWrite(lightOrder2[mid + offset], HIGH);
+        }
+        delay(500);
+    }
+    server.send(200, "text/html", "Middle-out sequence completed!");
+}
+
+void turnOffLights() {
+    for (int i = 0; i < numOfBulbs; i++) {
+        digitalWrite(lightOrder1[i], LOW);
+    }
+    server.send(200, "text/html", "All LEDs are OFF!");
+}
+
+void setup() {
+    Serial.begin(115200);
+    initializeBulbs();
+
+    // Connect to WiFi
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(50);
+        Serial.print(".");
+    }
+    Serial.println("\nConnected to WiFi");
+    Serial.println(WiFi.localIP());
+
+    // Route handlers
+    server.on("/", handleRoot);
+    server.on("/allon", Fn1);
+    server.on("/sequence", Fn2);
+    server.on("/middleout", Fn3);
+    server.on("/off", turnOffLights);
+
+    server.begin();
+    Serial.println("HTTP server started");
+}
+
+void loop() {
+    server.handleClient();
+}
